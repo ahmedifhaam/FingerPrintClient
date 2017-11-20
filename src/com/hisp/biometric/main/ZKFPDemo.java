@@ -1,7 +1,11 @@
 package com.hisp.biometric.main;
 
 
-import com.hisp.biometric.login.LoginCredentials;
+import com.hisp.biometric.models.FingerPrint;
+import com.hisp.biometric.models.NetworkException;
+import com.hisp.biometric.models.TrackedEntityInstance;
+import com.hisp.biometric.util.BrowserConnection;
+import com.hisp.biometric.util.ConfigurationAccess;
 import com.hisp.biometric.util.NetworkCall;
 import com.zkteco.biometric.FingerprintSensorErrorCode;
 import com.zkteco.biometric.FingerprintSensorEx;
@@ -11,18 +15,15 @@ import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.io.File;
 import java.io.IOException;
-import java.sql.ResultSet;
-import java.sql.SQLException;
+import java.net.MalformedURLException;
+import java.net.URL;
 import java.util.Base64;
-import java.util.List;
-import java.util.logging.Level;
-import java.util.logging.Logger;
-
 import javax.imageio.ImageIO;
 import javax.swing.ButtonGroup;
 import javax.swing.ImageIcon;
 import javax.swing.JButton;
 import javax.swing.JFrame;
+import javax.swing.JOptionPane;
 import javax.swing.JRadioButton;
 import javax.swing.JTextArea;
 import javax.swing.JTextField;
@@ -78,6 +79,8 @@ public class ZKFPDemo extends JFrame{
 	private long mhDevice = 0;
 	private long mhDB = 0;
 	private WorkThread workThread = null;
+        private FingerPrint lastFp;
+        
 	
 	public void launchFrame(){
                 System.out.println(System.getProperty("java.library.path"));
@@ -136,6 +139,18 @@ public class ZKFPDemo extends JFrame{
                 txtName  = new JTextField();
                 txtName.setBounds(500,440,150,20);
                 this.add(txtName);
+                
+                final JButton btnRegister = new JButton("Register");
+                btnRegister.addActionListener(new ActionListener(){
+                    @Override
+                    public void actionPerformed(ActionEvent e) {
+                        gotoRegisterWindow(lastFp);
+                    }
+                });
+                
+                
+                this.add(btnRegister);
+                btnRegister.setBounds(500,480,150,20);
                 
 		textArea = new JTextArea();
 		this.add(textArea);  
@@ -350,6 +365,8 @@ public class ZKFPDemo extends JFrame{
                                                 //Base64 Template
                                                 //String strBase64 = Base64.encodeToString(regTemp, 0, ret, Base64.NO_WRAP);
                                                 textArea.setText("enroll succ");
+                                                btnRegister.setEnabled(true);
+                                                btnRegister.setText("Register/Add");
 					}
 					else
 					{
@@ -645,7 +662,12 @@ public class ZKFPDemo extends JFrame{
                         //System.out.println("Enrollment");
                         String regTempStr = FingerprintSensorEx.BlobToBase64(regTemp, _retLen[0]);
                         FingerPrint fp = new FingerPrint();
+                        try{
                         fp = NetworkCall.recognize(regTempStr);
+                        }catch(Exception ex){
+                            ex.printStackTrace();
+                            return;
+                        }
                         if(fp==null){
                             textArea.setText("Error connecting to Server...");
                         }else if(fp.getFid()!=-1){
@@ -653,13 +675,19 @@ public class ZKFPDemo extends JFrame{
                         }else{
                             //sending enrollement request
                             textArea.setText("Enrolling");
-                            fp = NetworkCall.sendEnrollment(regTempStr);
+                            try{
+                                fp = NetworkCall.sendEnrollment(regTempStr);
+                            }catch(NetworkException ex){
+                                ex.printStackTrace();;
+                                return;
+                            }
                             if(fp==null){
                                 textArea.setText("Error connecting to Server...");
                             }else if(fp.getFid()==-1){
                                 textArea.setText("Enrollment Failed");
                             }else{
                                 textArea.setText("Enrollment Success ID :"+fp.getFid());
+                                lastFp = fp;
                             }
                         }
                         /*System.out.println("Enrolled STR TEMP b64 : "+regTempStr);
@@ -693,7 +721,12 @@ public class ZKFPDemo extends JFrame{
                 }*/
                 String templateStr = Base64.getEncoder().encodeToString(template);
                 FingerPrint fp = new FingerPrint();
-                fp = NetworkCall.recognize(templateStr);
+                try{
+                    fp = NetworkCall.recognize(templateStr);
+                }catch(NetworkException ex){
+                    ex.printStackTrace();;
+                    return;
+                }
                 if(fp==null){
                     textArea.setText("Error connecting to Server...");
                 }else if(fp.getFid()!=-1){
@@ -709,9 +742,7 @@ public class ZKFPDemo extends JFrame{
 
                 if(ret > 0)
                 {
-
                     textArea.setText("Verify succ, score=" + ret);
-
                 }   
                 else
                 {
@@ -720,6 +751,24 @@ public class ZKFPDemo extends JFrame{
             }
                 
             
+        }
+        
+        public boolean gotoRegisterWindow(FingerPrint fp){
+            String urlstr = NetworkCall.getUrlForRegister(fp);
+            try{
+                URL url = new URL(urlstr);
+                BrowserConnection.launchBroswserfor(url);
+                return true;
+            }catch(MalformedURLException ex){
+                System.out.println("Error forming the url");
+                ex.printStackTrace();
+            }           
+            return false;
+        
+        }
+        
+        public boolean gotoDashBoard(TrackedEntityInstance tei){
+            return true;
         }
 		
 		public static void main(String[] args) {

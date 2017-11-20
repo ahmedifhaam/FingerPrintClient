@@ -7,7 +7,7 @@ package com.hisp.biometric.login;
 
 /**
  *
- * @author Ahmed
+ * @author Ahmed Ifhaam
  */
 public class LoginCredentials {
     private String url;
